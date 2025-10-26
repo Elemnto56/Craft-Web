@@ -1,0 +1,7 @@
+title: Craft-Web Documentation
+description: A web browser for ComputerCraft
+remote_theme: just-the-docs/just-the-docs
+
+color_scheme: dark
+search_enabled: true
+theme: just-the-docs
