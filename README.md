@@ -19,3 +19,9 @@ Craft-Web is built to allow data that's far way to be transferred to you easily.
 6. Click the address bar, and type in an address based on the syntax: `cw://[id of server computer]?[path to cml]
     - *Example:* `cw://0?/example.cml`
 7. Click Enter
+
+## Upcoming Features
+- A `PUT` method that allows client to send CML files to the server
+- Correct rendering on all devices, and not just advanced computers (pocketcomputers, monitors, etc)
+- Allowing `http` requests to grab CML files from the irl internet
+- Possibly a better UI?
