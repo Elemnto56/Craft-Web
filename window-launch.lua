@@ -59,6 +59,11 @@ if arg[1] ~= nil then to_write = arg[1] else to_write = "" end
 term.write(to_write)
 term.setTextColor(colors.white)
 
+-- Return to craft-web button
+paintutils.drawBox(24, 1, 45, 1, colors.blue)
+term.setCursorPos(25, 1)
+term.write("Return to Craft-Web")
+
 -- Exit button
 paintutils.drawBox(45, 1, 51, 1, colors.red)
 term.setCursorPos(47, 1)
@@ -122,11 +127,16 @@ while true do
     os.pullEventRaw()
 
    local _, button, x, y = os.pullEvent("mouse_click")
-   if button == 1 and x > 41 or x < 51 and y == 1 then
+   if button == 1 and (x > 41 and x < 51) and y == 1 then
         term.setBackgroundColor(colors.black)
         term.clear()
         os.queueEvent("terminate")
-        if #arg ~= 0 and arg[2] == "true" then os.queueEvent("terminate") end
-   end
+        if #arg ~= 0 and arg[2] == "true" then fs.delete(arg[2]); os.queueEvent("terminate"); end
+    end
+
+    if button == 1 and (x > 24 and x < 45) and y == 1 then
+        term.clear()
+        shell.run("craft-web nil true")
+    end
     os.sleep(1)
 end
