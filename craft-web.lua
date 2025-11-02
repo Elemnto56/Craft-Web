@@ -2,14 +2,32 @@ if arg[1] ~= nil then
     if arg[1] ~= "nil" then shell.run("window-launch " .. arg[1] .. " true") end
 end
 
+-- Constants
+local function tobool(text)
+    if text == "true" then
+        return true
+    elseif text == "false" then
+        return false
+    end
+
+    return false
+end 
+
+local function trimWhitespace(s)
+    return s:gsub("^%s*(.-)%s*$", "%1")
+end
+
+local DEVICE_WIDTH, DEVICE_HEIGHT = term.getSize()
+
 -- PixelUI Generated Code
 local PixelUI = require("pixelui")
 PixelUI.init()
+term.clear()
 
 -- Create main container
 local main = PixelUI.container({
-    width = 51,
-    height = 19
+    width = DEVICE_WIDTH,
+    height = DEVICE_HEIGHT
 })
 
 -- Showing tip instead of an error
@@ -60,54 +78,117 @@ local reqTimeout = PixelUI.notificationToast({
 })
 
 main:addChild(PixelUI.textBox({
-    x = 16, y = 1, width = 20,
+    x = 8, y = 1, width = DEVICE_WIDTH - (DEVICE_WIDTH - 38),
     placeholder = "Address Bar",
     enabled = true,
     onEnter = function(self, text)
-        local port, path = text:match("^cw://(%d+)%?(/[%w/-]+%.cml)$")
+        local protocol = text:match("^(%w+)://.+")
 
-        if peripheral.isPresent("back") then
-            local x = ""; x, _ = peripheral.getType("back");
-            if x ~= "modem" then notAModem:show() end
+        if protocol == "cw" then
+            local port, path, extras = text:match("^cw://(%d+)%?([^@&]+)([@&]?.*)$")
+            
+            -- flags
+            local include = false
+            if extras:match("&(.+)") == "include" then include = true end
 
-            rednet.open("back") -- Register it to rednet
-            rednet.send(tonumber(port), path, "GET")
-            local _, fileContent, status = rednet.receive(nil, 3)
+            if peripheral.isPresent("back") then
+                local x = ""; x, _ = peripheral.getType("back");
+                if x ~= "modem" then notAModem:show() end
+                rednet.open("back") -- Register it to rednet
 
-            if fileContent == nil and status == nil then reqTimeout:show()
-            elseif tonumber(status) == 404 then fileNotFound:show() 
-            else
+                if extras:match("^@POST") then
+                    local clientPath = extras:match("%:(.+)")
+                    
+                    if not fs.exists(clientPath) then PixelUI.notificationToast({message = clientPath .. " does not exist", type = "error", x = 1, y = 18,duration = 5 * 1000, animateIn = true, animateOut = true}):show() else 
+                        local file = fs.open(clientPath, "r")
+
+                        local postInfo = {
+                            content = file.readAll(),
+                            serverPath = extras:match("(/.+)$")
+                        }
+                        file.close()
+                        rednet.send(tonumber(port), textutils.serialize(postInfo, {compact = true}), "POST")
+                        local _, allGood, _ = rednet.receive("200", 5)
+                        
+                        if allGood == nil then PixelUI.notificationToast({message = "Response from server timed out", type = "error", x = 1, y = 18,duration = 5 * 1000, animateIn = true, animateOut = true}):show() else 
+
+                            PixelUI.notificationToast({message = allGood, type = "success", x = 1, y = 18,duration = 5 * 1000, animateIn = true, animateOut = true}):show()
+                            if not include then fs.delete(clientPath) end
+                        end
+                    end
+                elseif extras:match("^@DELETE") then
+                    rednet.send(tonumber(port), path, "DELETE")
+
+                    local _, successMsg, status = rednet.receive(nil, 5)
+
+                    if status == "404" then
+                        PixelUI.notificationToast({message = successMsg, type = "error", x = 1, y = 18,duration = 5 * 1000, animateIn = true, animateOut = true}):show()
+                    elseif status == "200" then
+                        PixelUI.notificationToast({message = successMsg, type = "success", x = 1, y = 18,duration = 5 * 1000, animateIn = true, animateOut = true}):show()
+                    end
+                else
+                    rednet.send(tonumber(port), path, "GET")
+                    local _, fileContent, status = rednet.receive(nil, 3)
+
+                    if fileContent == nil or status == nil then reqTimeout:show()
+                    elseif tonumber(status) == 404 then fileNotFound:show() 
+                    else
+                        local grabbedFile = path:match("(%w+%.cml)")
+                        local tmp = fs.open(grabbedFile, "w")
+                        tmp.write(fileContent)
+                        tmp.close()
+
+                        shell.run("window-launch " .. grabbedFile .. " true")
+                        if not include then fs.delete(grabbedFile) end
+                    end
+                end
+            elseif peripheral.isPresent("top") then
+                local freq = math.random(1, 6400)
+                local ant = peripheral.wrap("top")
+
+                if port == nil or path == nil then tipOnURLFormat:show()end 
+                if ant == nil then noAntennaErr:show() end
+
+                ant.setFrequency(0)
+                ant.broadcast("GET" .. " " .. tostring(port).. " " .. path .. " " .. freq)
+                ant.setFrequency(freq)
+                local _, _, content, _ = os.pullEvent("radio_message")
+                
                 local grabbedFile = path:match("(%w+%.cml)")
                 local tmp = fs.open(grabbedFile, "w")
-                tmp.write(fileContent)
+                tmp.write(content)
                 tmp.close()
+
+                if not include then fs.delete(grabbedFile) end
 
                 shell.run("window-launch " .. grabbedFile .. " true")
             end
-        else if peripheral.isPresent("top") then
-            local freq = math.random(1, 6400)
-            local ant = peripheral.wrap("top")
+        elseif protocol == "http" or protocol == "https" then
+            term.setTextColor(colors.white)
+            term.write("got here")
+            local valid, _ = http.checkURL(trimWhitespace(text))
+            local cont = true
 
-            if port == nil or path == nil then tipOnURLFormat:show()end 
-            if ant == nil then noAntennaErr:show() end
+            if not tobool(valid) then PixelUI.notificationToast({ message = "The following URL was invalid", type = "error", x = 1, y = 18, duration = 5 * 1000, animateIn = true, animateOut = true}):show() end
 
-            ant.setFrequency(0)
-            ant.broadcast("GET" .. " " .. tostring(port).. " " .. path .. " " .. freq)
-            ant.setFrequency(freq)
-            local _, _, content, _ = os.pullEvent("radio_message")
-            
-            local grabbedFile = path:match("(%w+%.cml)")
-            local tmp = fs.open(grabbedFile, "w")
-            tmp.write(content)
-            tmp.close()
+            local posFile = http.get({url = trimWhitespace(tostring(text))})
+            if posFile == nil then PixelUI.notificationToast({ message = "Could not correctly fetch file", type = "error", x = 1, y = 18, duration = 5 * 1000, animateIn = true, animateOut = true}):show(); cont = false; end
 
-            shell.run("window-launch " .. grabbedFile .. " true")
+            if cont then
+                local file = fs.open("tmp.cml", "w+") 
+                file.write(posFile.readAll())
+                file.close()
+
+                if not include then fs.delete("tmp.cml") end
+
+                shell.run("window-launch tmp.cml true " .. text)
+            end
         end
-    end end
+    end 
 }))
 
 local tabContent = PixelUI.container({
-    width=51, height=19,
+    width=DEVICE_WIDTH, height=DEVICE_HEIGHT,
 })
 
 tabContent:addChild(
@@ -121,7 +202,7 @@ PixelUI.label({
 
 tabContent:addChild(
     PixelUI.richTextBox({
-        x = 7, y = 6, width = 40, height = 10,
+        x = 7, y = 6, width = DEVICE_WIDTH - 11, height = DEVICE_HEIGHT - 9,
         lines = {"To start, either call craft-web with the",  "arg of your .cml file, or connect to a ", "network via address bar"},
         wordWrap = true
     })
@@ -131,7 +212,7 @@ tabContent:addChild(
 -- TabControl element
 local element1 = PixelUI.tabControl({
     x = 1, y = 2,
-    width = 51, height = 19,
+    width = DEVICE_WIDTH, height = DEVICE_HEIGHT,
 
     tabs = {{text = "Main", content = tabContent}},
     background = colors.white
@@ -143,8 +224,8 @@ main:addChild(element1)
 local element2 = PixelUI.button({
     x = 48,
     y = 1,
-    width = 4,
-    height = 1,
+    width = DEVICE_WIDTH - 47,
+    height = DEVICE_HEIGHT - 18,
     text = "Exit",
     onClick = function(self)
         PixelUI.clear()
