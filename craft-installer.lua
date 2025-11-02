@@ -5,7 +5,7 @@ shell.run("wget https://raw.githubusercontent.com/Elemnto56/Craft-Web/refs/heads
 local x = ""
 if #fs.find("pixelui") == 0 then    
     while true do
-        print("Craft-Web requires PixelUI to operate. Do you want me to install it? (y/n)")
+        print("Craft-Web requires a modified PixelUI to operate. Do you want me to install it? (y/n)")
         x = io.stdin._handle.readLine()
 
         if x == "y" then
