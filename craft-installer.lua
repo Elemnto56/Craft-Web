@@ -10,7 +10,7 @@ if #fs.find("pixelui") == 0 then
 
         if x == "y" then
             print("Installing PixelUI...")
-            shell.run("wget https://raw.githubusercontent.com/Shlomo1412/PixelUI/refs/heads/main/pixelui.lua")
+            shell.run("wget https://raw.githubusercontent.com/Elemnto56/Craft-Web/refs/heads/main/pixelui.lua")
             print("Done! Goodbye.")
             os.queueEvent("terminate")
             sleep(2)
